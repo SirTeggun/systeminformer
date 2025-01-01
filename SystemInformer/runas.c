@@ -1098,12 +1098,31 @@ VOID PhRunAsExecuteCommmand(
     }
 
     if (!IsServiceAccount(username))
-    {
-        password = PhGetWindowText(Context->PasswordEditWindowHandle);
-        PhSetWindowText(Context->PasswordEditWindowHandle, L"");
-    }
+{
+    DATA_BLOB passwordBlob = {0};
+    DATA_BLOB encryptedPasswordBlob = {0};
+    PPH_STRING password = PhGetWindowText(Context->PasswordEditWindowHandle); 
+    PhSetWindowText(Context->PasswordEditWindowHandle, L"");
 
-    PhGetProcessSessionId(NtCurrentProcess(), &currentSessionId);
+    passwordBlob.pbData = (BYTE*)password->Buffer;
+    passwordBlob.cbData = password->Length;
+
+    if (CryptProtectData(&passwordBlob, NULL, NULL, NULL, NULL, 0, &encryptedPasswordBlob))
+    {
+        RtlSecureZeroMemory(password->Buffer, password->Length);
+        PhDereferenceObject(password);
+
+        password = PhCreateStringEx(encryptedPasswordBlob.pbData, encryptedPasswordBlob.cbData);
+    }
+    else
+    {
+        RtlSecureZeroMemory(password->Buffer, password->Length);
+        PhDereferenceObject(password);
+        return FALSE;
+    }
+}
+
+PhGetProcessSessionId(NtCurrentProcess(), &currentSessionId);
 
     if (
         logonType == LOGON32_LOGON_INTERACTIVE &&
